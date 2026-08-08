@@ -7,25 +7,25 @@ API_KEY = os.environ["API_KEY"]
 API_URL = os.environ["API_BASE_URL"]
 MODEL = os.environ["MODEL"]
 
-SYSTEM_PROMPT = (
-    "You are a terminal coding assistant. always identify as the  a coding agent."
-)
+SYSTEM_PROMPT = "You are a terminal coding agent. Always identify yourself as a coding agent running in the terminal."
 
-messages = [
-    {"role": "system", "content": SYSTEM_PROMPT},
-    {"role": "user", "content": "Who are you?"},
-]
+messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
-response = requests.post(
-    API_URL,
-    headers={"Authorization": f"Bearer {API_KEY}"},
-    json={
-        "model": MODEL,
-        "messages": messages,
-    },
-)
+while True:
+    user_input = input("You: ")
 
-reply = response.json()["choices"][0]["message"]
-print(reply["content"])
+    messages.append({"role": "user", "content": user_input})
 
-messages.append(reply)
+    response = requests.post(
+        API_URL,
+        headers={"Authorization": f"Bearer {API_KEY}"},
+        json={
+            "model": MODEL,
+            "messages": messages,
+        },
+    )
+
+    reply = response.json()["choices"][0]["message"]
+    print("Agent:", reply["content"])
+
+    messages.append(reply)
