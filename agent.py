@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 import requests
 from dotenv import load_dotenv
 
@@ -16,6 +17,10 @@ API_URL = os.environ["API_BASE_URL"]
 MODEL = os.environ["MODEL"]
 
 SYSTEM_PROMPT = "You are a terminal coding agent. Always identify yourself as a coding agent running in the terminal."
+
+if os.path.exists("Agents.md"):
+    with open("Agents.md", "r", encoding="utf-8") as f:
+        SYSTEM_PROMPT += "\n\nProject Context and Skills:\n" + f.read()
 
 TOOLS = [
     {
@@ -64,17 +69,30 @@ TOOLS = [
 ]
 
 
-def call_model(messages):
-    response = requests.post(
-        API_URL,
-        headers={"Authorization": f"Bearer {API_KEY}"},
-        json={
-            "model": MODEL,
-            "messages": messages,
-            "tools": TOOLS,
-        },
-    )
-    return response.json()["choices"][0]["message"]
+def call_model(messages, retries=3, backoff_factor=1):
+    for attempt in range(retries):
+        try:
+            response = requests.post(
+                API_URL,
+                headers={"Authorization": f"Bearer {API_KEY}"},
+                json={
+                    "model": MODEL,
+                    "messages": messages,
+                    "tools": TOOLS,
+                },
+                timeout=30,
+            )
+            response.raise_for_status()
+            return response.json()["choices"][0]["message"]
+        except (
+            requests.RequestException,
+            json.JSONDecodeError,
+            KeyError,
+            IndexError,
+        ) as e:
+            if attempt == retries - 1:
+                raise e
+            time.sleep(backoff_factor * (2**attempt))
 
 
 def execute_cmd(command):
@@ -82,10 +100,13 @@ def execute_cmd(command):
     return result.stdout + result.stderr
 
 
-def read_file(path, start_line=None, end_line=None):
+def read_file(path, start_line=None, end_line=None, files_read=None):
     try:
         with open(path, "r", encoding="utf-8") as f:
             lines = f.readlines()
+
+        if files_read is not None:
+            files_read.add(path)
 
         start = max(0, start_line - 1) if start_line is not None else 0
         end = end_line if end_line is not None else len(lines)
@@ -95,16 +116,19 @@ def read_file(path, start_line=None, end_line=None):
         return f"Error reading file '{path}': {str(e)}"
 
 
-def write_file(path, content):
+def write_file(path, content, files_read):
+    if os.path.exists(path) and path not in files_read:
+        return f"Action denied: read '{path}' before writing to it"
     try:
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
+        files_read.add(path)
         return f"Successfully wrote to {path}"
     except Exception as e:
         return f"Error writing to file '{path}': {str(e)}"
 
 
-def handle_toolcall(tool_calls, messages):
+def handle_toolcall(tool_calls, messages, files_read):
     for call in tool_calls:
         name = call["function"]["name"]
         try:
@@ -130,11 +154,12 @@ def handle_toolcall(tool_calls, messages):
                 path,
                 args.get("start_line"),
                 args.get("end_line"),
+                files_read,
             )
         elif name == "write_file":
             path = args.get("path", "")
             print(f"[Writing file]: {path}")
-            output = write_file(path, args.get("content", ""))
+            output = write_file(path, args.get("content", ""), files_read)
         else:
             output = f"Unknown tool: {name}"
 
@@ -158,6 +183,7 @@ def handle_toolcall(tool_calls, messages):
 
 def main():
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    files_read = set()
 
     while True:
         user_input = input("You: ")
@@ -176,7 +202,7 @@ def main():
             if not tool_calls:
                 break
 
-            handle_toolcall(tool_calls, messages)
+            handle_toolcall(tool_calls, messages, files_read)
 
 
 if __name__ == "__main__":
