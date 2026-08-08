@@ -7,6 +7,9 @@ import time
 import requests
 from dotenv import load_dotenv
 
+PERSISTENCE_FILE = ".messages.json"
+
+
 if os.name == "nt":
     if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -21,7 +24,22 @@ API_KEY = os.environ["API_KEY"]
 API_URL = os.environ["API_BASE_URL"]
 MODEL = os.environ["MODEL"]
 
-SYSTEM_PROMPT = "You are a terminal coding agent. Always identify yourself as a coding agent running in the terminal."
+SYSTEM_PROMPT = """You are an autonomous AI software engineering agent running directly in the user's terminal.
+
+# CAPABILITIES & TOOLS
+- You can execute shell commands using `execute_cmd`.
+- You can read file contents (and specific line ranges) using `read_file`.
+- You can write or modify file contents using `write_file`.
+
+# OPERATIONAL MODES
+- **build mode**: Tools are fully active. Execute commands and inspect or modify files as needed.
+- **plan mode**: Tools are disabled. Formulate strategies, discuss architecture, and plan with the user.
+
+# CORE RULES
+1. **READ BEFORE WRITE**: If a file already exists, you MUST use `read_file` on it before using `write_file`. The system will reject writes to unread existing files. New non-existent files can be created directly.
+2. **FILE WRITING & PARTIAL EDITS**: `write_file` supports full writes or line-based partial edits. For partial edits, specify `old_content` matching the target lines exactly. If `old_content` does not match the file content exactly, the write operation will fail and return feedback.
+3. **VERIFY CHANGES**: After modifying code in build mode, run shell commands (`execute_cmd`) to verify and test your changes.
+4. **CROSS-PLATFORM**: Adapt your shell commands to the host operating system."""
 
 if os.path.exists("AGENTS.md"):
     with open("AGENTS.md", "r", encoding="utf-8") as f:
@@ -60,18 +78,37 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "write_file",
-            "description": "Write content to a file, overwriting its contents",
+            "description": "Write or update file content. Pass old_content for exact line-based partial replacements.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "path": {"type": "string"},
                     "content": {"type": "string"},
+                    "old_content": {"type": "string"},
                 },
                 "required": ["path", "content"],
             },
         },
     },
 ]
+
+
+def save_messages(messages):
+    try:
+        with open(PERSISTENCE_FILE, "w", encoding="utf-8") as f:
+            json.dump(messages, f, indent=2)
+    except Exception:
+        pass
+
+
+def load_messages():
+    if os.path.exists(PERSISTENCE_FILE):
+        try:
+            with open(PERSISTENCE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return None
 
 
 def call_model(messages, mode="build", retries=3, backoff_factor=1):
@@ -122,14 +159,29 @@ def read_file(path, start_line=None, end_line=None, files_read=None):
         return f"Error reading file '{path}': {str(e)}"
 
 
-def write_file(path, content, files_read):
+def write_file(path, content, files_read, old_content=None):
     if os.path.exists(path) and path not in files_read:
         return f"Action denied: read '{path}' before writing to it"
     try:
+        if old_content:
+            if not os.path.exists(path):
+                return f"Write failed: '{path}' does not exist"
+            with open(path, "r", encoding="utf-8") as f:
+                file_text = f.read()
+            if old_content not in file_text:
+                return "Write failed: target content did not match file content exactly"
+            if file_text.count(old_content) > 1:
+                return f"Write failed: target content matched multiple locations in '{path}'"
+            file_text = file_text.replace(old_content, content, 1)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(file_text)
+            files_read.add(path)
+            return f"Successfully updated '{path}'"
+
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
         files_read.add(path)
-        return f"Successfully wrote to {path}"
+        return f"Successfully wrote to '{path}'"
     except Exception as e:
         return f"Error writing to file '{path}': {str(e)}"
 
@@ -165,7 +217,12 @@ def handle_toolcall(tool_calls, messages, files_read):
         elif name == "write_file":
             path = args.get("path", "")
             print(f"{YELLOW}[Writing file]: {path}{RESET}")
-            output = write_file(path, args.get("content", ""), files_read)
+            output = write_file(
+                path,
+                args.get("content", ""),
+                files_read,
+                args.get("old_content"),
+            )
         else:
             output = f"Unknown tool: {name}"
 
@@ -188,13 +245,27 @@ def handle_toolcall(tool_calls, messages, files_read):
 
 
 def main():
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     files_read = set()
     mode = "build"
 
+    messages = load_messages()
+    if not messages:
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        save_messages(messages)
+    else:
+        print(
+            f"{YELLOW}[Restored previous session history from {PERSISTENCE_FILE}]{RESET}"
+        )
+
     while True:
-        print(f"{YELLOW}[Status | Mode: {mode}]{RESET}")
-        user_input = input(f"{GREEN}You: {RESET}").strip()
+        approx_tokens = sum(len(str(m)) for m in messages) // 4
+        print(f"{YELLOW}[Status | Mode: {mode} | Tokens: ~{approx_tokens}]{RESET}")
+
+        try:
+            user_input = input(f"{GREEN}You: {RESET}").strip()
+        except KeyboardInterrupt:
+            print(f"\n{YELLOW}[Exiting...]{RESET}")
+            break
 
         if user_input == "/exit":
             break
@@ -202,6 +273,7 @@ def main():
         if user_input == "/clear":
             messages = [{"role": "system", "content": SYSTEM_PROMPT}]
             files_read.clear()
+            save_messages(messages)
             print(f"{YELLOW}[Context cleared]{RESET}")
             continue
 
@@ -213,38 +285,63 @@ def main():
                     "content": f"[System Note: User switched mode to '{mode}']",
                 }
             )
+            save_messages(messages)
             print(f"{YELLOW}[Mode set to: {mode}]{RESET}")
             continue
 
         messages.append({"role": "user", "content": user_input})
+        save_messages(messages)
 
-        while True:
-            reply = call_model(messages, mode=mode)
+        try:
+            while True:
+                reply = call_model(messages, mode=mode)
 
-            if reply.get("content"):
-                print(f"{BLUE}Agent: {reply['content']}{RESET}")
+                if reply.get("content"):
+                    print(f"{BLUE}Agent: {reply['content']}{RESET}")
 
-            messages.append(reply)
+                messages.append(reply)
+                save_messages(messages)
 
-            tool_calls = reply.get("tool_calls")
-            if not tool_calls:
-                break
+                tool_calls = reply.get("tool_calls")
+                if not tool_calls:
+                    break
 
-            if mode == "plan":
-                for call in tool_calls:
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": call["id"],
-                            "content": "Action denied: Tool execution is disabled in plan mode. Tell the user to switch to build mode using /build.",
-                        }
+                if mode == "plan":
+                    for call in tool_calls:
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": call["id"],
+                                "content": "Action denied: Tool execution is disabled in plan mode. Tell the user to switch to build mode using /build.",
+                            }
+                        )
+                    save_messages(messages)
+                    print(
+                        f"{YELLOW}[Action denied: Tool execution restricted in plan mode]{RESET}"
                     )
-                print(
-                    f"{YELLOW}[Action denied: Tool execution restricted in plan mode]{RESET}"
-                )
-                break
+                    break
 
-            handle_toolcall(tool_calls, messages, files_read)
+                handle_toolcall(tool_calls, messages, files_read)
+                save_messages(messages)
+
+        except KeyboardInterrupt:
+            print(f"\n{YELLOW}[Response forcefully stopped]{RESET}")
+            messages.append(
+                {
+                    "role": "user",
+                    "content": "[System Note: User forcefully stopped the agent response]",
+                }
+            )
+            save_messages(messages)
+        except Exception as e:
+            print(f"\n{YELLOW}[Error: {e}]{RESET}")
+            messages.append(
+                {
+                    "role": "user",
+                    "content": f"[System Note: Agent response failed with error: {e}]",
+                }
+            )
+            save_messages(messages)
 
 
 if __name__ == "__main__":

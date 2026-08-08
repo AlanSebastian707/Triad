@@ -1,0 +1,424 @@
+:root {
+  --pink: #ff6b9d;
+  --pink-dark: #e84a7a;
+  --purple: #8f6bff;
+  --cream: #fff7fa;
+  --ink: #3a2d3f;
+  --soft: #6b5b70;
+  --radius: 18px;
+  --shadow: 0 12px 32px rgba(232, 74, 122, 0.22);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: "Poppins", sans-serif;
+  color: var(--ink);
+  background: linear-gradient(135deg, #ffd6e7 0%, #ffe8f0 45%, #e7dcff 100%);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ---------- Balloons ---------- */
+#balloons {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.balloon {
+  position: absolute;
+  bottom: -140px;
+  width: 42px;
+  height: 54px;
+  border-radius: 50% 50% 48% 52%;
+  animation: floatUp linear infinite;
+  opacity: 0.75;
+}
+
+.balloon::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -12px;
+  width: 2px;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.25);
+  transform: translateX(-50%);
+}
+
+.balloon::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  background: inherit;
+  clip-path: polygon(50% 100%, 0 0, 100% 0);
+  transform: translateX(-50%) rotate(180deg);
+  opacity: 0.6;
+}
+
+@keyframes floatUp {
+  0% {
+    transform: translateY(0) translateX(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-50vh) translateX(20px) rotate(8deg);
+  }
+  100% {
+    transform: translateY(-110vh) translateX(-15px) rotate(-8deg);
+  }
+}
+
+/* ---------- Confetti canvas ---------- */
+#confetti-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 50;
+}
+
+/* ---------- Hero ---------- */
+.hero {
+  position: relative;
+  z-index: 1;
+  min-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 20px 24px;
+}
+
+.eyebrow {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.65);
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--pink-dark);
+  box-shadow: 0 4px 14px rgba(232, 74, 122, 0.15);
+  margin-bottom: 18px;
+}
+
+.title {
+  font-family: "Pacifico", cursive;
+  font-weight: 400;
+  color: var(--pink-dark);
+  line-height: 1.15;
+  text-shadow: 0 3px 0 #fff;
+}
+
+h1.title {
+  font-size: clamp(2.4rem, 7vw, 4.5rem);
+}
+
+h2.title {
+  font-size: clamp(3rem, 10vw, 6.5rem);
+  background: linear-gradient(120deg, var(--pink), var(--purple, #b06bff));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.subtitle {
+  margin: 22px auto 30px;
+  max-width: 560px;
+  font-size: 1.15rem;
+  line-height: 1.7;
+  color: var(--soft);
+}
+
+.highlight {
+  color: var(--pink);
+  font-weight: 700;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  font-family: "Poppins", sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 999px;
+  padding: 14px 26px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.btn:active {
+  transform: scale(0.96);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--pink), var(--purple));
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+
+.btn-primary:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 34px rgba(232, 74, 122, 0.35);
+}
+
+.btn-outline {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--pink-dark);
+  box-shadow: 0 6px 18px rgba(176, 107, 255, 0.2);
+}
+
+.btn-outline:hover {
+  transform: translateY(-3px);
+  background: #fff;
+}
+
+/* ---------- Countdown ---------- */
+.countdown {
+  margin-top: 44px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px);
+  border-radius: var(--radius);
+  padding: 20px 28px 24px;
+  box-shadow: var(--shadow);
+  max-width: 520px;
+  width: 100%;
+}
+
+.countdown-title {
+  font-weight: 600;
+  color: var(--soft);
+  margin-bottom: 14px;
+  letter-spacing: 0.5px;
+}
+
+.countdown-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.count-item {
+  background: #fff;
+  border-radius: 14px;
+  padding: 12px 4px;
+  box-shadow: 0 6px 16px rgba(58, 45, 61, 0.08);
+}
+
+.count-num {
+  display: block;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--pink-dark);
+}
+
+.count-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--soft);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 2px;
+}
+
+/* ---------- Section ---------- */
+main {
+  position: relative;
+  z-index: 1;
+}
+
+.section {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 64px 20px;
+  text-align: center;
+}
+
+.section-title {
+  font-family: "Pacifico", cursive;
+  font-weight: 400;
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  color: var(--pink-dark);
+  margin-bottom: 14px;
+}
+
+.section-text {
+  color: var(--soft);
+  line-height: 1.7;
+  max-width: 620px;
+  margin: 0 auto 28px;
+}
+
+/* ---------- Gallery ---------- */
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+}
+
+.gallery-card {
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 10px 26px rgba(58, 109, 61, 0.12);
+  background: #fff;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+}
+
+.gallery-card:hover {
+  transform: translateY(-6px) rotate(-1deg);
+  box-shadow: 0 18px 36px rgba(232, 74, 122, 0.25);
+}
+
+.gallery-card img {
+  width: 100%;
+  height: 190px;
+  object-fit: cover;
+  display: block;
+}
+
+.gallery-card figcaption {
+  padding: 12px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+/* ---------- Wish form ---------- */
+.wish-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 520px;
+  margin: 0 auto 36px;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: var(--radius);
+  padding: 22px;
+  box-shadow: var(--shadow);
+}
+
+.wish-input {
+  font-family: "Poppins", sans-serif;
+  font-size: 1rem;
+  padding: 12px 16px;
+  border: 2px solid #f3c9d8;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.wish-input:focus {
+  border-color: var(--pink);
+}
+
+.wish-textarea {
+  resize: vertical;
+  min-height: 90px;
+}
+
+/* ---------- Wish cards ---------- */
+.wish-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.wish-card {
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 18px;
+  text-align: left;
+  box-shadow: 0 8px 22px rgba(58, 109, 61, 0.1);
+  border-top: 6px solid var(--pink);
+  animation: popIn 0.35s ease;
+}
+
+.wish-card-name {
+  font-weight: 700;
+  color: var(--pink-dark);
+  margin-bottom: 6px;
+}
+
+.wish-card-text {
+  color: var(--soft);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.wish-card-time {
+  margin-top: 10px;
+  font-size: 0.75rem;
+  color: #b9a7b0;
+}
+
+@keyframes popIn {
+  from {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ---------- Footer ---------- */
+.footer {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 28px 20px 40px;
+  color: var(--soft);
+  font-size: 0.95rem;
+}
+
+.footer span {
+  color: var(--pink-dark);
+  font-weight: 700;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 520px) {
+  .countdown-grid {
+    gap: 6px;
+  }
+
+  .count-num {
+    font-size: 1.35rem;
+  }
+
+  .hero-actions {
+    width: 100%;
+    max-width: 320px;
+  }
+
+  .hero-actions .btn {
+    width: 100%;
+  }
+}
