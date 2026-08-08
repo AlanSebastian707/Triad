@@ -46,6 +46,21 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "write_file",
+            "description": "Write content to a file, overwriting its contents",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"},
+                    "content": {"type": "string"},
+                },
+                "required": ["path", "content"],
+            },
+        },
+    },
 ]
 
 
@@ -80,6 +95,15 @@ def read_file(path, start_line=None, end_line=None):
         return f"Error reading file '{path}': {str(e)}"
 
 
+def write_file(path, content):
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return f"Successfully wrote to {path}"
+    except Exception as e:
+        return f"Error writing to file '{path}': {str(e)}"
+
+
 def handle_toolcall(tool_calls, messages):
     for call in tool_calls:
         name = call["function"]["name"]
@@ -96,17 +120,32 @@ def handle_toolcall(tool_calls, messages):
             continue
 
         if name == "execute_cmd":
-            output = execute_cmd(args["command"])
-            print("[execute_cmd]", output)
+            cmd = args.get("command", "")
+            print(f"[Executing command]: {cmd}")
+            output = execute_cmd(cmd)
         elif name == "read_file":
+            path = args.get("path", "")
+            print(f"[Reading file]: {path}")
             output = read_file(
-                args["path"],
+                path,
                 args.get("start_line"),
                 args.get("end_line"),
             )
-            print(f"[read_file {args['path']}]", output)
+        elif name == "write_file":
+            path = args.get("path", "")
+            print(f"[Writing file]: {path}")
+            output = write_file(path, args.get("content", ""))
         else:
             output = f"Unknown tool: {name}"
+
+        lines = output.splitlines()
+        if len(lines) > 5:
+            display_output = "\n".join(lines[:5]) + "\n... [truncated for display]"
+        else:
+            display_output = output
+
+        if display_output:
+            print("Output:", display_output)
 
         messages.append(
             {
