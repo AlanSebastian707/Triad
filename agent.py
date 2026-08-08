@@ -11,6 +11,11 @@ if os.name == "nt":
     if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
 
+GREEN = "\033[32m"
+BLUE = "\033[34m"
+YELLOW = "\033[33m"
+RESET = "\033[0m"
+
 load_dotenv()
 API_KEY = os.environ["API_KEY"]
 API_URL = os.environ["API_BASE_URL"]
@@ -18,8 +23,8 @@ MODEL = os.environ["MODEL"]
 
 SYSTEM_PROMPT = "You are a terminal coding agent. Always identify yourself as a coding agent running in the terminal."
 
-if os.path.exists("Agents.md"):
-    with open("Agents.md", "r", encoding="utf-8") as f:
+if os.path.exists("AGENTS.md"):
+    with open("AGENTS.md", "r", encoding="utf-8") as f:
         SYSTEM_PROMPT += "\n\nProject Context and Skills:\n" + f.read()
 
 TOOLS = [
@@ -69,7 +74,8 @@ TOOLS = [
 ]
 
 
-def call_model(messages, retries=3, backoff_factor=1):
+def call_model(messages, mode="build", retries=3, backoff_factor=1):
+    active_tools = TOOLS if mode == "build" else []
     for attempt in range(retries):
         try:
             response = requests.post(
@@ -78,7 +84,7 @@ def call_model(messages, retries=3, backoff_factor=1):
                 json={
                     "model": MODEL,
                     "messages": messages,
-                    "tools": TOOLS,
+                    "tools": active_tools,
                 },
                 timeout=30,
             )
@@ -145,11 +151,11 @@ def handle_toolcall(tool_calls, messages, files_read):
 
         if name == "execute_cmd":
             cmd = args.get("command", "")
-            print(f"[Executing command]: {cmd}")
+            print(f"{YELLOW}[Executing command]: {cmd}{RESET}")
             output = execute_cmd(cmd)
         elif name == "read_file":
             path = args.get("path", "")
-            print(f"[Reading file]: {path}")
+            print(f"{YELLOW}[Reading file]: {path}{RESET}")
             output = read_file(
                 path,
                 args.get("start_line"),
@@ -158,7 +164,7 @@ def handle_toolcall(tool_calls, messages, files_read):
             )
         elif name == "write_file":
             path = args.get("path", "")
-            print(f"[Writing file]: {path}")
+            print(f"{YELLOW}[Writing file]: {path}{RESET}")
             output = write_file(path, args.get("content", ""), files_read)
         else:
             output = f"Unknown tool: {name}"
@@ -170,7 +176,7 @@ def handle_toolcall(tool_calls, messages, files_read):
             display_output = output
 
         if display_output:
-            print("Output:", display_output)
+            print(f"{YELLOW}Output:\n{display_output}{RESET}")
 
         messages.append(
             {
@@ -184,22 +190,58 @@ def handle_toolcall(tool_calls, messages, files_read):
 def main():
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     files_read = set()
+    mode = "build"
 
     while True:
-        user_input = input("You: ")
+        print(f"{YELLOW}[Status | Mode: {mode}]{RESET}")
+        user_input = input(f"{GREEN}You: {RESET}").strip()
+
+        if user_input == "/exit":
+            break
+
+        if user_input == "/clear":
+            messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+            files_read.clear()
+            print(f"{YELLOW}[Context cleared]{RESET}")
+            continue
+
+        if user_input in ("/plan", "/build"):
+            mode = user_input[1:]
+            messages.append(
+                {
+                    "role": "user",
+                    "content": f"[System Note: User switched mode to '{mode}']",
+                }
+            )
+            print(f"{YELLOW}[Mode set to: {mode}]{RESET}")
+            continue
 
         messages.append({"role": "user", "content": user_input})
 
         while True:
-            reply = call_model(messages)
+            reply = call_model(messages, mode=mode)
 
             if reply.get("content"):
-                print("Agent:", reply["content"])
+                print(f"{BLUE}Agent: {reply['content']}{RESET}")
 
             messages.append(reply)
 
             tool_calls = reply.get("tool_calls")
             if not tool_calls:
+                break
+
+            if mode == "plan":
+                for call in tool_calls:
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": call["id"],
+                            "content": "Action denied: Tool execution is disabled in plan mode. Tell the user to switch to build mode using /build.",
+                        }
+                    )
+                print(
+                    f"{YELLOW}[Action denied: Tool execution restricted in plan mode]{RESET}"
+                )
                 break
 
             handle_toolcall(tool_calls, messages, files_read)
